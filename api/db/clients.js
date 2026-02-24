@@ -1,18 +1,5 @@
 // API endpoint: Správa klientů (CRUD)
-import { createClient } from '@supabase/supabase-js';
-
-function getSupabase(authHeader) {
-    const supabase = createClient(
-        process.env.SUPABASE_URL,
-        process.env.SUPABASE_ANON_KEY,
-        {
-            global: {
-                headers: { Authorization: authHeader }
-            }
-        }
-    );
-    return supabase;
-}
+import { getSupabase } from './_supabase.js';
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');

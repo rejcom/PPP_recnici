@@ -1,13 +1,5 @@
 // API endpoint: Správa sezení (CRUD) + pokrok klienta
-import { createClient } from '@supabase/supabase-js';
-
-function getSupabase(authHeader) {
-    return createClient(
-        process.env.SUPABASE_URL,
-        process.env.SUPABASE_ANON_KEY,
-        { global: { headers: { Authorization: authHeader } } }
-    );
-}
+import { getSupabase } from './_supabase.js';
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
