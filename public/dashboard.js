@@ -2,7 +2,7 @@
 // PPP Dashboard – hlavní logika
 // ============================================================
 
-let supabase = null;
+let supabaseClient = null;
 let currentUser = null;
 let currentProfessional = null;
 let currentClientId = null;
@@ -17,17 +17,17 @@ async function initApp() {
     try {
         const res = await fetch('/api/supabase-config');
         const config = await res.json();
-        supabase = window.supabase.createClient(config.url, config.anonKey);
+        supabaseClient = window.supabase.createClient(config.url, config.anonKey);
 
         // Listener pro auth změny (potvrzení e-mailu, atd.)
-        supabase.auth.onAuthStateChange(async (event, session) => {
+        supabaseClient.auth.onAuthStateChange(async (event, session) => {
             if (event === 'SIGNED_IN' && session) {
                 currentUser = session.user;
                 // Dokončit registraci pokud čeká
                 const savedMeta = localStorage.getItem('ppp_registration_meta');
                 if (savedMeta) {
                     const meta = JSON.parse(savedMeta);
-                    const { data: existing } = await supabase
+                    const { data: existing } = await supabaseClient
                         .from('professionals')
                         .select('id')
                         .eq('auth_user_id', session.user.id)
@@ -43,7 +43,7 @@ async function initApp() {
         });
 
         // Zkontrolovat existující session
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         if (session) {
             currentUser = session.user;
             await loadProfessionalProfile();
@@ -73,7 +73,7 @@ function showDashboard() {
 }
 
 async function login(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
     if (error) throw error;
     currentUser = data.user;
 
@@ -82,7 +82,7 @@ async function login(email, password) {
     if (savedMeta) {
         const meta = JSON.parse(savedMeta);
         // Zkontrolovat, jestli profil už existuje
-        const { data: existing } = await supabase
+        const { data: existing } = await supabaseClient
             .from('professionals')
             .select('id')
             .eq('auth_user_id', data.user.id)
@@ -98,7 +98,7 @@ async function login(email, password) {
 }
 
 async function register(email, password, meta) {
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await supabaseClient.auth.signUp({
         email,
         password,
         options: { data: meta }
@@ -134,7 +134,7 @@ async function completeRegistration(user, meta, email) {
         // Vytvořit nebo najít instituci
         let institutionId = null;
         if (meta.institution) {
-            const { data: inst } = await supabase
+            const { data: inst } = await supabaseClient
                 .from('institutions')
                 .select('id')
                 .eq('name', meta.institution)
@@ -142,7 +142,7 @@ async function completeRegistration(user, meta, email) {
             if (inst) {
                 institutionId = inst.id;
             } else {
-                const { data: newInst, error: instErr } = await supabase
+                const { data: newInst, error: instErr } = await supabaseClient
                     .from('institutions')
                     .insert({ name: meta.institution, type: 'ppp' })
                     .select('id')
@@ -153,7 +153,7 @@ async function completeRegistration(user, meta, email) {
         }
 
         // Vytvořit profil profesionála
-        const { error: profErr } = await supabase.from('professionals').insert({
+        const { error: profErr } = await supabaseClient.from('professionals').insert({
             auth_user_id: user.id,
             first_name: meta.first_name || meta.first_name,
             last_name: meta.last_name || meta.last_name,
@@ -168,7 +168,7 @@ async function completeRegistration(user, meta, email) {
 }
 
 async function logout() {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
     currentUser = null;
     currentProfessional = null;
     showLogin();
@@ -176,7 +176,7 @@ async function logout() {
 
 async function loadProfessionalProfile() {
     if (!currentUser) return;
-    const { data } = await supabase
+    const { data } = await supabaseClient
         .from('professionals')
         .select('*, institutions(name, type)')
         .eq('auth_user_id', currentUser.id)
@@ -192,13 +192,13 @@ async function loadProfessionalProfile() {
 }
 
 function getAuthHeaders() {
-    const session = supabase?.realtime?.accessToken;
+    const session = supabaseClient?.realtime?.accessToken;
     // Use supabase session token
     return {};
 }
 
 async function apiCall(endpoint, method = 'GET', body = null) {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await supabaseClient.auth.getSession();
     const opts = {
         method,
         headers: {
