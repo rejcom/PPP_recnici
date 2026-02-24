@@ -59,6 +59,7 @@ export default async function handler(req, res) {
             });
 
             return res.status(200).json({
+                data: data,
                 timeline: data,
                 grouped,
                 categories: Object.keys(grouped)
@@ -75,7 +76,7 @@ export default async function handler(req, res) {
                 .select();
             if (error) throw error;
 
-            return res.status(201).json(data);
+            return res.status(201).json({ data });
         }
 
         return res.status(405).json({ error: 'Method not allowed' });

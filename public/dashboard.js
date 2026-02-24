@@ -176,11 +176,15 @@ async function logout() {
 
 async function loadProfessionalProfile() {
     if (!currentUser) return;
-    const { data } = await supabaseClient
+    const { data, error } = await supabaseClient
         .from('professionals')
         .select('*, institutions(name, type)')
         .eq('auth_user_id', currentUser.id)
         .single();
+    if (error) {
+        console.error('loadProfessionalProfile error:', error);
+    }
+    console.log('Professional profile loaded:', data);
     currentProfessional = data;
     if (data) {
         document.getElementById('navUserName').textContent =
@@ -688,18 +692,30 @@ async function generateAIReport() {
 }
 
 async function saveNewClient() {
+    // Kontrola, že máme profesionální profil
+    if (!currentProfessional) {
+        alert('Chyba: Nebyl nalezen váš profesionální profil. Zkuste se odhlásit a znovu přihlásit.');
+        console.error('currentProfessional is null');
+        return;
+    }
+    if (!currentProfessional.institution_id) {
+        alert('Chyba: Váš profil nemá přiřazenou instituci. Kontaktujte správce.');
+        console.error('currentProfessional.institution_id is null', currentProfessional);
+        return;
+    }
+
     const body = {
         first_name: document.getElementById('newClientFirstName').value,
         last_name: document.getElementById('newClientLastName').value,
         birth_date: document.getElementById('newClientBirthDate').value || null,
         gender: document.getElementById('newClientGender').value || null,
         school_name: document.getElementById('newClientSchool').value || null,
-        class_name: document.getElementById('newClientClass').value || null,
+        school_class: document.getElementById('newClientClass').value || null,
         parent_name: document.getElementById('newClientParent').value || null,
         parent_phone: document.getElementById('newClientParentPhone').value || null,
         parent_email: document.getElementById('newClientParentEmail').value || null,
         notes: document.getElementById('newClientNotes').value || null,
-        institution_id: currentProfessional?.institution_id
+        institution_id: currentProfessional.institution_id
     };
 
     if (!body.first_name || !body.last_name) {
@@ -708,7 +724,9 @@ async function saveNewClient() {
     }
 
     try {
+        console.log('Saving new client:', body);
         const res = await apiCall('clients', 'POST', body);
+        console.log('Save client response:', res);
         if (res.error) throw new Error(res.error);
         closeModal('newClientModal');
         await loadClients();
@@ -722,7 +740,8 @@ async function saveNewClient() {
             if (el) el.value = '';
         });
     } catch (e) {
-        alert('Chyba: ' + e.message);
+        console.error('Save client error:', e);
+        alert('Chyba při ukládání klienta: ' + e.message);
     }
 }
 

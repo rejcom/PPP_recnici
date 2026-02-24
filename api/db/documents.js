@@ -58,7 +58,7 @@ export default async function handler(req, res) {
 
             const { data, error } = await query;
             if (error) throw error;
-            return res.status(200).json(data);
+            return res.status(200).json({ data });
         }
 
         // POST - nahrát dokument (metadata + upload do Storage)
@@ -128,7 +128,7 @@ export default async function handler(req, res) {
                 .single();
             if (dbError) throw dbError;
 
-            return res.status(201).json(doc);
+            return res.status(201).json({ data: doc });
         }
 
         // DELETE - smazat dokument

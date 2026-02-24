@@ -32,19 +32,19 @@ export default async function handler(req, res) {
             const { id, search } = req.query;
 
             if (id) {
-                // Detail klienta s přehledem
+                // Detail klienta
                 const { data, error } = await supabase
-                    .from('client_overview')
+                    .from('clients')
                     .select('*')
                     .eq('id', id)
                     .single();
                 if (error) throw error;
-                return res.status(200).json(data);
+                return res.status(200).json({ data });
             }
 
             // Seznam klientů
             let query = supabase
-                .from('client_overview')
+                .from('clients')
                 .select('*')
                 .eq('is_active', true)
                 .order('last_name');
@@ -55,7 +55,7 @@ export default async function handler(req, res) {
 
             const { data, error } = await query;
             if (error) throw error;
-            return res.status(200).json(data);
+            return res.status(200).json({ data });
         }
 
         // POST - nový klient
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
                 .select()
                 .single();
             if (error) throw error;
-            return res.status(201).json(data);
+            return res.status(201).json({ data });
         }
 
         // PUT - aktualizace klienta
@@ -81,7 +81,7 @@ export default async function handler(req, res) {
                 .select()
                 .single();
             if (error) throw error;
-            return res.status(200).json(data);
+            return res.status(200).json({ data });
         }
 
         // DELETE - deaktivace klienta (soft delete)
@@ -96,7 +96,7 @@ export default async function handler(req, res) {
                 .select()
                 .single();
             if (error) throw error;
-            return res.status(200).json(data);
+            return res.status(200).json({ data });
         }
 
         return res.status(405).json({ error: 'Method not allowed' });

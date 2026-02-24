@@ -34,7 +34,7 @@ export default async function handler(req, res) {
                     .eq('id', id)
                     .single();
                 if (error) throw error;
-                return res.status(200).json(data);
+                return res.status(200).json({ data });
             }
 
             if (client_id) {
@@ -46,7 +46,7 @@ export default async function handler(req, res) {
                     .order('session_date', { ascending: false })
                     .limit(parseInt(queryLimit) || 50);
                 if (error) throw error;
-                return res.status(200).json(data);
+                return res.status(200).json({ data });
             }
 
             // Poslední sezení (dashboard)
@@ -56,7 +56,7 @@ export default async function handler(req, res) {
                 .order('session_date', { ascending: false })
                 .limit(parseInt(queryLimit) || 20);
             if (error) throw error;
-            return res.status(200).json(data);
+            return res.status(200).json({ data });
         }
 
         // POST - nové sezení
@@ -105,7 +105,7 @@ export default async function handler(req, res) {
                 if (progressError) console.error('Progress notes error:', progressError);
             }
 
-            return res.status(201).json(session);
+            return res.status(201).json({ data: session });
         }
 
         // PUT - aktualizace sezení
@@ -120,7 +120,7 @@ export default async function handler(req, res) {
                 .select()
                 .single();
             if (error) throw error;
-            return res.status(200).json(data);
+            return res.status(200).json({ data });
         }
 
         return res.status(405).json({ error: 'Method not allowed' });
