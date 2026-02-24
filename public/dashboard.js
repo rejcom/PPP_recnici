@@ -19,6 +19,29 @@ async function initApp() {
         const config = await res.json();
         supabase = window.supabase.createClient(config.url, config.anonKey);
 
+        // Listener pro auth změny (potvrzení e-mailu, atd.)
+        supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'SIGNED_IN' && session) {
+                currentUser = session.user;
+                // Dokončit registraci pokud čeká
+                const savedMeta = localStorage.getItem('ppp_registration_meta');
+                if (savedMeta) {
+                    const meta = JSON.parse(savedMeta);
+                    const { data: existing } = await supabase
+                        .from('professionals')
+                        .select('id')
+                        .eq('auth_user_id', session.user.id)
+                        .maybeSingle();
+                    if (!existing) {
+                        await completeRegistration(session.user, meta, session.user.email);
+                    }
+                    localStorage.removeItem('ppp_registration_meta');
+                }
+                await loadProfessionalProfile();
+                showDashboard();
+            }
+        });
+
         // Zkontrolovat existující session
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
@@ -53,6 +76,23 @@ async function login(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     currentUser = data.user;
+
+    // Zkontrolovat, jestli čeká nedokončená registrace
+    const savedMeta = localStorage.getItem('ppp_registration_meta');
+    if (savedMeta) {
+        const meta = JSON.parse(savedMeta);
+        // Zkontrolovat, jestli profil už existuje
+        const { data: existing } = await supabase
+            .from('professionals')
+            .select('id')
+            .eq('auth_user_id', data.user.id)
+            .maybeSingle();
+        if (!existing) {
+            await completeRegistration(data.user, meta, email);
+        }
+        localStorage.removeItem('ppp_registration_meta');
+    }
+
     await loadProfessionalProfile();
     showDashboard();
 }
@@ -65,41 +105,66 @@ async function register(email, password, meta) {
     });
     if (error) throw error;
 
-    // Vytvořit nebo najít instituci
-    let institutionId = null;
-    if (meta.institution) {
-        const { data: inst } = await supabase
-            .from('institutions')
-            .select('id')
-            .eq('name', meta.institution)
-            .single();
-        if (inst) {
-            institutionId = inst.id;
-        } else {
-            const { data: newInst } = await supabase
-                .from('institutions')
-                .insert({ name: meta.institution, type: 'ppp' })
-                .select('id')
-                .single();
-            if (newInst) institutionId = newInst.id;
-        }
+    // Pokud Supabase vyžaduje potvrzení e-mailu, session nebude
+    const session = data.session;
+    if (!session) {
+        // E-mail confirmation je zapnutá — uživatel musí potvrdit e-mail
+        alert('Registrace úspěšná! Zkontrolujte svůj e-mail a klikněte na potvrzovací odkaz. Pak se přihlaste.');
+        // Uložit metadata do localStorage pro dokončení po přihlášení
+        localStorage.setItem('ppp_registration_meta', JSON.stringify({
+            ...meta,
+            email: email,
+            user_id: data.user?.id
+        }));
+        document.getElementById('registerForm').style.display = 'none';
+        document.getElementById('loginForm').style.display = 'block';
+        return;
     }
 
-    // Vytvořit profil profesionála
-    if (data.user) {
-        await supabase.from('professionals').insert({
-            auth_user_id: data.user.id,
-            first_name: meta.first_name,
-            last_name: meta.last_name,
-            role: meta.role,
+    // Session existuje (e-mail confirmation vypnutá) — vytvořit profil
+    currentUser = data.user;
+    await completeRegistration(data.user, meta, email);
+    await loadProfessionalProfile();
+    showDashboard();
+}
+
+// Dokončení registrace — vytvoření instituce + profilu
+async function completeRegistration(user, meta, email) {
+    try {
+        // Vytvořit nebo najít instituci
+        let institutionId = null;
+        if (meta.institution) {
+            const { data: inst } = await supabase
+                .from('institutions')
+                .select('id')
+                .eq('name', meta.institution)
+                .single();
+            if (inst) {
+                institutionId = inst.id;
+            } else {
+                const { data: newInst, error: instErr } = await supabase
+                    .from('institutions')
+                    .insert({ name: meta.institution, type: 'ppp' })
+                    .select('id')
+                    .single();
+                if (instErr) console.error('Institution insert error:', instErr);
+                if (newInst) institutionId = newInst.id;
+            }
+        }
+
+        // Vytvořit profil profesionála
+        const { error: profErr } = await supabase.from('professionals').insert({
+            auth_user_id: user.id,
+            first_name: meta.first_name || meta.first_name,
+            last_name: meta.last_name || meta.last_name,
+            role: meta.role || 'psycholog',
             institution_id: institutionId,
             email: email
         });
+        if (profErr) console.error('Professional insert error:', profErr);
+    } catch (e) {
+        console.error('completeRegistration error:', e);
     }
-
-    currentUser = data.user;
-    await loadProfessionalProfile();
-    showDashboard();
 }
 
 async function logout() {

@@ -144,6 +144,12 @@ $$ LANGUAGE SQL SECURITY DEFINER STABLE;
 CREATE POLICY "Professionals can view own institution" ON professionals
     FOR SELECT USING (institution_id = get_user_institution_id());
 
+CREATE POLICY "Users can view own profile" ON professionals
+    FOR SELECT USING (auth_user_id = auth.uid());
+
+CREATE POLICY "Users can insert own professional profile" ON professionals
+    FOR INSERT WITH CHECK (auth_user_id = auth.uid());
+
 CREATE POLICY "Professionals can update self" ON professionals
     FOR UPDATE USING (auth_user_id = auth.uid());
 
@@ -184,6 +190,9 @@ CREATE POLICY "Insert progress for own clients" ON progress_notes
 -- Policies: institutions (users can see their own institution)
 CREATE POLICY "View own institution" ON institutions
     FOR SELECT USING (id = get_user_institution_id());
+
+CREATE POLICY "Authenticated users can insert institutions" ON institutions
+    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
 -- =====================================================
 -- VIEWS pro snadné dotazy
