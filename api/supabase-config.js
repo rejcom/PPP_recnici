@@ -11,7 +11,7 @@ export default async function handler(req, res) {
 
     // Vrátit veřejnou konfiguraci (anon key je bezpečný díky RLS)
     res.status(200).json({
-        url: process.env.SUPABASE_URL,
-        anonKey: process.env.SUPABASE_ANON_KEY
+        url: (process.env.SUPABASE_URL || '').trim(),
+        anonKey: (process.env.SUPABASE_ANON_KEY || '').trim()
     });
 }
