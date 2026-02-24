@@ -16,6 +16,8 @@ let isRealTimeActive = false;
 let detectedSpeakers = new Map(); // speakerId -> { number, role }
 let speakerCounter = 0;
 let lastSpeakerId = null;
+let currentManualSpeaker = null; // pro manuální přepínání řečníků
+let useDiarization = false; // true pokud ConversationTranscriber funguje
 
 // ===== ELEMENTY =====
 const elements = {
@@ -65,6 +67,16 @@ document.addEventListener('DOMContentLoaded', () => {
         loadDemoBtn.addEventListener('click', loadDemoData);
     }
 
+    // Manuální přepínání řečníků
+    const addSpeakerBtn = document.getElementById('addSpeaker');
+    if (addSpeakerBtn) {
+        addSpeakerBtn.addEventListener('click', addManualSpeaker);
+    }
+    const switchSpeakerBtn = document.getElementById('switchSpeaker');
+    if (switchSpeakerBtn) {
+        switchSpeakerBtn.addEventListener('click', switchToNextSpeaker);
+    }
+
     // Kontrola Azure Speech SDK
     if (typeof SpeechSDK === 'undefined') {
         console.warn('⚠️ Azure Speech SDK není načteno. Čekám 2 sekundy...');
@@ -89,6 +101,23 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         alert('Váš prohlížeč nepodporuje nahrávání zvuku. Použijte prosím moderní prohlížeč (Chrome, Edge, Firefox).');
     }
+
+    // Klávesová zkratka Tab pro přepínání řečníků
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab' && isRealTimeActive && !useDiarization) {
+            e.preventDefault();
+            switchToNextSpeaker();
+        }
+        // Klávesy 1-9 pro rychlé přepnutí na konkrétního řečníka
+        if (e.altKey && e.key >= '1' && e.key <= '9' && isRealTimeActive && !useDiarization) {
+            e.preventDefault();
+            const speakerIds = Array.from(detectedSpeakers.keys());
+            const index = parseInt(e.key) - 1;
+            if (index < speakerIds.length) {
+                switchToSpeaker(speakerIds[index]);
+            }
+        }
+    });
 });
 
 // ===== REAL-TIME PŘEPIS =====
@@ -100,12 +129,6 @@ async function startRealTimeTranscription() {
         if (typeof SpeechSDK === 'undefined') {
             alert('Azure Speech SDK není načteno!\n\nZkuste:\n1. Obnovit stránku (F5)\n2. Zkontrolovat internetové připojení\n3. Vypnout firewall/antivirus');
             updateStatus('Chyba: SDK není načteno', 'ready');
-            return;
-        }
-
-        // Kontrola Azure konfigurace
-        if (AZURE_CONFIG.subscriptionKey === 'VÁŠ_AZURE_SPEECH_KEY') {
-            showAzureSetupInstructions();
             return;
         }
 
@@ -154,76 +177,145 @@ function setupMediaRecorder(stream) {
 }
 
 async function initializeAzureSpeech(stream) {
-    // AZURE CONVERSATION TRANSCRIBER - S diarizací řečníků
     try {
-        console.log('Inicializuji Azure Speech SDK s diarizací...');
+        console.log('Inicializuji Azure Speech SDK...');
 
         // Reset speaker tracking
         detectedSpeakers.clear();
         speakerCounter = 0;
         lastSpeakerId = null;
+        useDiarization = false;
         updateSpeakerPanel();
 
-        // Získat token z backendu (místo přímého klíče)
+        // Získat token z backendu
         console.log('Získávám token z backendu...');
         const tokenResponse = await fetch('/api/speech-token');
         if (!tokenResponse.ok) {
-            throw new Error('Nelze získat Azure token');
+            throw new Error('Nelze získat Azure token. Zkontrolujte backend a environment proměnné.');
         }
         const { token, region } = await tokenResponse.json();
         console.log('✅ Token získán z backendu');
 
-        // Vytvořit speech config s tokenem
+        // Vytvořit speech config
         const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(token, region);
         speechConfig.speechRecognitionLanguage = AZURE_CONFIG.language;
-        console.log('✅ SpeechConfig vytvořen');
 
-        // Vytvořit audio config
+        // Audio config
         const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
-        console.log('✅ AudioConfig vytvořen');
 
-        // Vytvořit ConversationTranscriber pro diarizaci
-        recognizer = new SpeechSDK.ConversationTranscriber(speechConfig, audioConfig);
-        console.log('✅ ConversationTranscriber vytvořen (s diarizací)');
+        // Zkusit ConversationTranscriber (automatická diarizace)
+        // Pokud není dostupný nebo selže, použijeme SpeechRecognizer + manuální přepínání
+        let useConversationTranscriber = false;
+        if (typeof SpeechSDK.ConversationTranscriber === 'function') {
+            try {
+                recognizer = new SpeechSDK.ConversationTranscriber(speechConfig, audioConfig);
+                useConversationTranscriber = true;
+                console.log('✅ ConversationTranscriber dostupný');
+            } catch (e) {
+                console.warn('⚠️ ConversationTranscriber není dostupný, používám SpeechRecognizer:', e.message);
+            }
+        }
 
-        // Event handlers - s identifikací řečníků
-        recognizer.transcribing = (s, e) => {
+        if (useConversationTranscriber) {
+            // === REŽIM 1: Automatická diarizace ===
+            useDiarization = true;
+            showManualSpeakerControls(false);
+
+            recognizer.transcribing = (s, e) => {
+                if (e.result.text) {
+                    const speakerId = e.result.speakerId || 'Unknown';
+                    registerSpeaker(speakerId);
+                    appendToTranscript(e.result.text, false, speakerId);
+                }
+            };
+
+            recognizer.transcribed = (s, e) => {
+                if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
+                    const speakerId = e.result.speakerId || 'Unknown';
+                    registerSpeaker(speakerId);
+                    appendToTranscript(e.result.text, true, speakerId);
+                }
+            };
+
+            recognizer.canceled = (s, e) => {
+                console.error('❌ Diarizace zrušena:', e.reason, e.errorDetails);
+                // Fallback na SpeechRecognizer
+                console.log('🔄 Přepínám na SpeechRecognizer...');
+                recognizer.close();
+                recognizer = null;
+                initializeFallbackRecognizer(speechConfig);
+            };
+
+            recognizer.sessionStopped = (s, e) => {
+                console.log('Session stopped');
+            };
+
+            recognizer.startTranscribingAsync(
+                () => {
+                    console.log('✅ Conversation Transcription spuštěno (auto-diarizace)');
+                    updateStatus('🎤 Nahrávám (auto rozpoznávání řečníků)...', 'recording');
+                },
+                (err) => {
+                    console.warn('⚠️ ConversationTranscriber selže, fallback:', err);
+                    recognizer.close();
+                    recognizer = null;
+                    initializeFallbackRecognizer(speechConfig);
+                }
+            );
+
+        } else {
+            // === REŽIM 2: SpeechRecognizer + manuální přepínání řečníků ===
+            initializeFallbackRecognizer(speechConfig);
+        }
+
+    } catch (error) {
+        console.error('❌ Výjimka při inicializaci:', error);
+        alert('Chyba při inicializaci Azure Speech: ' + error.message);
+        updateStatus('Chyba', 'ready');
+    }
+}
+
+// Fallback: standardní SpeechRecognizer s manuálním přepínáním řečníků
+function initializeFallbackRecognizer(speechConfig) {
+    try {
+        useDiarization = false;
+        const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+        recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
+        console.log('✅ SpeechRecognizer vytvořen (manuální režim)');
+
+        // Automaticky přidat prvního řečníka pokud žádný neexistuje
+        if (detectedSpeakers.size === 0) {
+            registerSpeaker('Manual-1');
+            currentManualSpeaker = 'Manual-1';
+        }
+        showManualSpeakerControls(true);
+
+        recognizer.recognizing = (s, e) => {
             if (e.result.text) {
-                const speakerId = e.result.speakerId || 'Unknown';
-                console.log(`Rozpoznávám [${speakerId}]:`, e.result.text);
-                registerSpeaker(speakerId);
-                appendToTranscript(e.result.text, false, speakerId);
+                const speaker = currentManualSpeaker || 'Manual-1';
+                appendToTranscript(e.result.text, false, speaker);
             }
         };
 
-        recognizer.transcribed = (s, e) => {
+        recognizer.recognized = (s, e) => {
             if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
-                const speakerId = e.result.speakerId || 'Unknown';
-                console.log(`✅ Rozpoznáno [${speakerId}]:`, e.result.text);
-                registerSpeaker(speakerId);
-                appendToTranscript(e.result.text, true, speakerId);
-            } else if (e.result.reason === SpeechSDK.ResultReason.NoMatch) {
-                console.log('⚠️ Žádná shoda');
+                const speaker = currentManualSpeaker || 'Manual-1';
+                console.log(`✅ Rozpoznáno [${getSpeakerLabel(speaker)}]:`, e.result.text);
+                appendToTranscript(e.result.text, true, speaker);
             }
         };
 
         recognizer.canceled = (s, e) => {
-            console.error('❌ Rozpoznávání zrušeno:', e.reason);
             if (e.reason === SpeechSDK.CancellationReason.Error) {
-                console.error('❌ Error details:', e.errorDetails);
+                console.error('❌ Speech error:', e.errorDetails);
                 alert('Chyba Azure Speech: ' + e.errorDetails);
             }
         };
 
-        recognizer.sessionStopped = (s, e) => {
-            console.log('Session stopped');
-        };
-
-        // Spustit continuous transcription s diarizací
-        recognizer.startTranscribingAsync(
+        recognizer.startContinuousRecognitionAsync(
             () => {
-                console.log('✅ Azure Conversation Transcription spuštěno (s diarizací)!');
-                updateStatus('🎤 Nahrávám s rozpoznáváním řečníků...', 'recording');
+                console.log('✅ SpeechRecognizer spuštěn (manuální řečníci)');
+                updateStatus('🎤 Nahrávám – přepínejte řečníky tlačítkem...', 'recording');
             },
             (err) => {
                 console.error('❌ Chyba při spuštění:', err);
@@ -231,10 +323,9 @@ async function initializeAzureSpeech(stream) {
                 updateStatus('Chyba', 'ready');
             }
         );
-
     } catch (error) {
-        console.error('❌ Výjimka při inicializaci:', error);
-        alert('Chyba při inicializaci Azure Speech: ' + error.message);
+        console.error('❌ Fallback recognizer selhal:', error);
+        alert('Nelze spustit přepis: ' + error.message);
         updateStatus('Chyba', 'ready');
     }
 }
@@ -245,19 +336,27 @@ function stopRealTimeTranscription() {
     }
 
     if (recognizer) {
-        recognizer.stopTranscribingAsync(
-            () => {
-                console.log('Transcription zastavena');
-                recognizer.close();
-                recognizer = null;
-            },
-            (err) => {
-                console.error('Chyba při zastavování:', err);
-                recognizer.close();
-                recognizer = null;
-            }
-        );
+        const stopMethod = useDiarization ? 'stopTranscribingAsync' : 'stopContinuousRecognitionAsync';
+        if (typeof recognizer[stopMethod] === 'function') {
+            recognizer[stopMethod](
+                () => {
+                    console.log('Přepis zastaven');
+                    recognizer.close();
+                    recognizer = null;
+                },
+                (err) => {
+                    console.error('Chyba při zastavování:', err);
+                    try { recognizer.close(); } catch(e) {}
+                    recognizer = null;
+                }
+            );
+        } else {
+            try { recognizer.close(); } catch(e) {}
+            recognizer = null;
+        }
     }
+
+    showManualSpeakerControls(false);
 
     stopTimer();
     isRealTimeActive = false;
@@ -458,6 +557,24 @@ function updateSpeakerPanel() {
         `;
         list.appendChild(item);
     });
+
+    // Aktualizovat rychlá tlačítka řečníků (pro manuální režim)
+    updateQuickSpeakerButtons();
+}
+
+function updateQuickSpeakerButtons() {
+    const container = document.getElementById('speakerQuickButtons');
+    if (!container) return;
+    container.innerHTML = '';
+
+    detectedSpeakers.forEach((speaker, speakerId) => {
+        const btn = document.createElement('button');
+        btn.className = 'speaker-quick-btn' + (speakerId === currentManualSpeaker ? ' active' : '');
+        btn.dataset.speakerId = speakerId;
+        btn.innerHTML = `<span class="speaker-badge" style="background-color: ${speaker.color}; min-width: 24px; height: 22px; font-size: 11px;">Ř${speaker.number}</span> ${speaker.role || 'Řečník ' + speaker.number}`;
+        btn.onclick = () => switchToSpeaker(speakerId);
+        container.appendChild(btn);
+    });
 }
 
 function assignSpeakerRole(speakerId, role) {
@@ -468,6 +585,9 @@ function assignSpeakerRole(speakerId, role) {
 
         // Aktualizovat všechny existující labely v přepisu
         refreshSpeakerLabelsInTranscript();
+        // Aktualizovat rychlá tlačítka
+        updateQuickSpeakerButtons();
+        updateActiveSpeakerDisplay();
     }
 }
 
@@ -481,6 +601,65 @@ function refreshSpeakerLabelsInTranscript() {
             label.textContent = `[${getSpeakerLabel(speakerId)}] `;
             label.style.color = getSpeakerColor(speakerId);
         }
+    });
+}
+
+// ===== MANUÁLNÍ PŘEPÍNÁNÍ ŘEČNÍKŮ =====
+
+function addManualSpeaker() {
+    speakerCounter++;
+    const speakerId = `Manual-${speakerCounter}`;
+    detectedSpeakers.set(speakerId, {
+        number: speakerCounter,
+        role: '',
+        color: SPEAKER_COLORS[(speakerCounter - 1) % SPEAKER_COLORS.length]
+    });
+    currentManualSpeaker = speakerId;
+    updateSpeakerPanel();
+    updateActiveSpeakerDisplay();
+    console.log(`🆕 Přidán řečník ${speakerCounter}`);
+}
+
+function switchToNextSpeaker() {
+    if (detectedSpeakers.size === 0) return;
+
+    const speakerIds = Array.from(detectedSpeakers.keys());
+    const currentIndex = speakerIds.indexOf(currentManualSpeaker);
+    const nextIndex = (currentIndex + 1) % speakerIds.length;
+    currentManualSpeaker = speakerIds[nextIndex];
+    lastSpeakerId = null; // Vynutit zobrazení nového labelu
+    updateActiveSpeakerDisplay();
+    console.log(`🔄 Přepnuto na: ${getSpeakerLabel(currentManualSpeaker)}`);
+}
+
+function switchToSpeaker(speakerId) {
+    if (detectedSpeakers.has(speakerId)) {
+        currentManualSpeaker = speakerId;
+        lastSpeakerId = null;
+        updateActiveSpeakerDisplay();
+    }
+}
+
+function showManualSpeakerControls(show) {
+    const controls = document.getElementById('manualSpeakerControls');
+    if (controls) {
+        controls.style.display = show ? 'flex' : 'none';
+    }
+}
+
+function updateActiveSpeakerDisplay() {
+    const display = document.getElementById('activeSpeakerDisplay');
+    if (display && currentManualSpeaker) {
+        const speaker = detectedSpeakers.get(currentManualSpeaker);
+        if (speaker) {
+            display.innerHTML = `<span class="speaker-badge" style="background-color: ${speaker.color};">Ř${speaker.number}</span> ${getSpeakerLabel(currentManualSpeaker)}`;
+        }
+    }
+
+    // Aktualizovat aktivní stav tlačítek řečníků
+    const buttons = document.querySelectorAll('.speaker-quick-btn');
+    buttons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.speakerId === currentManualSpeaker);
     });
 }
 

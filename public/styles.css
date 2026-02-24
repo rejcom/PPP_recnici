@@ -442,3 +442,69 @@ textarea::-webkit-scrollbar-thumb:hover {
     font-style: italic;
     color: #999;
 }
+
+/* ===== MANUAL SPEAKER CONTROLS ===== */
+.manual-speaker-controls {
+    background: linear-gradient(135deg, #e8f5e9, #f1f8e9);
+    border: 2px solid #4caf50;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+}
+
+.speaker-controls-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.active-speaker-display {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: white;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    font-weight: 700;
+}
+
+.speaker-controls-buttons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.speaker-quick-buttons {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.speaker-quick-btn {
+    padding: 6px 14px;
+    border: 2px solid var(--border-color);
+    border-radius: 20px;
+    background: white;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.speaker-quick-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.speaker-quick-btn.active {
+    border-color: #4caf50;
+    background: #e8f5e9;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+}

@@ -64,9 +64,26 @@
                     </div>
                 </div>
 
-                <!-- Panel řečníků (diarizace) -->
+                <!-- Manuální přepínání řečníků (zobrazí se při nahrávání) -->
+                <div id="manualSpeakerControls" class="manual-speaker-controls" style="display: none;">
+                    <div class="speaker-controls-header">
+                        <span>🎙️ Aktuální řečník:</span>
+                        <span id="activeSpeakerDisplay" class="active-speaker-display">Řečník 1</span>
+                    </div>
+                    <div class="speaker-controls-buttons">
+                        <button id="switchSpeaker" class="btn btn-small btn-primary" title="Klávesa: Tab">
+                            🔄 Přepnout řečníka (Tab)
+                        </button>
+                        <button id="addSpeaker" class="btn btn-small btn-secondary">
+                            ➕ Přidat řečníka
+                        </button>
+                    </div>
+                    <div id="speakerQuickButtons" class="speaker-quick-buttons"></div>
+                </div>
+
+                <!-- Panel řečníků (role) -->
                 <div id="speakerPanel" class="speaker-panel" style="display: none;">
-                    <h3>👥 Rozpoznaní řečníci</h3>
+                    <h3>👥 Řečníci</h3>
                     <p class="speaker-hint">Přiřaďte role jednotlivým řečníkům pro lepší orientaci v přepisu:</p>
                     <div id="speakerList" class="speaker-list"></div>
                 </div>
