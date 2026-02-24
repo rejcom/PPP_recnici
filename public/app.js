@@ -200,6 +200,11 @@ async function initializeAzureSpeech(stream) {
         const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(token, region);
         speechConfig.speechRecognitionLanguage = AZURE_CONFIG.language;
 
+        // Povolit diarizaci v průběžných výsledcích (dle Microsoft dokumentace)
+        speechConfig.setProperty(
+            "SpeechServiceResponse_DiarizeIntermediateResults", "true"
+        );
+
         // Audio config
         const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
 
