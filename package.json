@@ -7,7 +7,15 @@
     "dev": "vercel dev",
     "build": "echo 'No build needed'"
   },
-  "keywords": ["psychology", "transcription", "azure", "speech-to-text"],
+  "keywords": [
+    "psychology",
+    "transcription",
+    "azure",
+    "speech-to-text"
+  ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.97.0"
+  }
 }

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPP Dashboard - Správa klientů</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Chart.js pro grafy pokroku -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+    <!-- LOGIN SCREEN -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-card">
+            <h1>📝 PPP Platform</h1>
+            <p>Pedagogicko-psychologická poradna</p>
+
+            <div id="loginForm">
+                <div class="form-field">
+                    <label>E-mail</label>
+                    <input type="email" id="loginEmail" placeholder="vas@email.cz" required>
+                </div>
+                <div class="form-field">
+                    <label>Heslo</label>
+                    <input type="password" id="loginPassword" placeholder="••••••••" required>
+                </div>
+                <button id="loginBtn" class="btn btn-primary btn-block">Přihlásit se</button>
+                <button id="showRegisterBtn" class="btn btn-link">Nemáte účet? Zaregistrujte se</button>
+                <div id="loginError" class="error-msg" style="display:none;"></div>
+            </div>
+
+            <div id="registerForm" style="display:none;">
+                <div class="form-field">
+                    <label>Jméno</label>
+                    <input type="text" id="regFirstName" placeholder="Jan" required>
+                </div>
+                <div class="form-field">
+                    <label>Příjmení</label>
+                    <input type="text" id="regLastName" placeholder="Novák" required>
+                </div>
+                <div class="form-field">
+                    <label>E-mail</label>
+                    <input type="email" id="regEmail" placeholder="jan.novak@ppp.cz" required>
+                </div>
+                <div class="form-field">
+                    <label>Heslo</label>
+                    <input type="password" id="regPassword" placeholder="Min. 6 znaků" required>
+                </div>
+                <div class="form-field">
+                    <label>Role</label>
+                    <select id="regRole">
+                        <option value="psycholog">Psycholog</option>
+                        <option value="etoped">Etoped</option>
+                        <option value="logoped">Logoped</option>
+                        <option value="specialni_pedagog">Speciální pedagog</option>
+                        <option value="socialní_pracovnik">Sociální pracovník</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Název instituce</label>
+                    <input type="text" id="regInstitution" placeholder="PPP Praha 1">
+                </div>
+                <button id="registerBtn" class="btn btn-primary btn-block">Zaregistrovat se</button>
+                <button id="showLoginBtn" class="btn btn-link">Již máte účet? Přihlaste se</button>
+                <div id="registerError" class="error-msg" style="display:none;"></div>
+            </div>
+
+            <div class="login-footer">
+                <a href="index.html">← Zpět na přepis bez přihlášení</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD -->
+    <div id="dashboard" class="dashboard" style="display:none;">
+        <!-- Top nav -->
+        <nav class="top-nav">
+            <div class="nav-brand">
+                <span class="nav-logo">📝</span>
+                <span class="nav-title">PPP Platform</span>
+            </div>
+            <div class="nav-tabs">
+                <button class="nav-tab active" data-tab="overview">📊 Přehled</button>
+                <button class="nav-tab" data-tab="clients">👥 Klienti</button>
+                <button class="nav-tab" data-tab="newSession">🎤 Nové sezení</button>
+                <button class="nav-tab" data-tab="documents">📁 Dokumenty</button>
+            </div>
+            <div class="nav-user">
+                <span id="navUserName">Psycholog</span>
+                <button id="logoutBtn" class="btn btn-small btn-danger">Odhlásit</button>
+            </div>
+        </nav>
+
+        <!-- TAB: Přehled -->
+        <div id="tab-overview" class="tab-content active">
+            <div class="page-header">
+                <h2>Přehled</h2>
+                <span id="institutionName" class="institution-badge"></span>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="statClients">0</div>
+                    <div class="stat-label">Aktivní klienti</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="statSessions">0</div>
+                    <div class="stat-label">Celkem sezení</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="statDocuments">0</div>
+                    <div class="stat-label">Dokumenty</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="statThisMonth">0</div>
+                    <div class="stat-label">Tento měsíc</div>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <h3>Poslední sezení</h3>
+                <div id="recentSessionsList" class="list-container">
+                    <p class="empty-state">Načítám...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: Klienti -->
+        <div id="tab-clients" class="tab-content">
+            <div class="page-header">
+                <h2>Klienti</h2>
+                <div class="header-actions">
+                    <input type="text" id="clientSearch" placeholder="🔍 Hledat klienta..." class="search-input">
+                    <button id="addClientBtn" class="btn btn-primary">➕ Nový klient</button>
+                </div>
+            </div>
+
+            <div id="clientsList" class="cards-grid">
+                <p class="empty-state">Načítám klienty...</p>
+            </div>
+
+            <!-- Client Detail Modal -->
+            <div id="clientDetailModal" class="modal" style="display:none;">
+                <div class="modal-content modal-large">
+                    <div class="modal-header">
+                        <h3 id="clientDetailName">Detail klienta</h3>
+                        <button class="modal-close" onclick="closeModal('clientDetailModal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="detail-tabs">
+                            <button class="detail-tab active" data-detail="info">📋 Info</button>
+                            <button class="detail-tab" data-detail="sessions">📝 Sezení</button>
+                            <button class="detail-tab" data-detail="progress">📈 Pokrok</button>
+                            <button class="detail-tab" data-detail="docs">📁 Dokumenty</button>
+                        </div>
+
+                        <!-- Info -->
+                        <div id="detail-info" class="detail-content active">
+                            <div id="clientInfoContent"></div>
+                        </div>
+
+                        <!-- Sezení -->
+                        <div id="detail-sessions" class="detail-content">
+                            <div id="clientSessionsList"></div>
+                        </div>
+
+                        <!-- Pokrok -->
+                        <div id="detail-progress" class="detail-content">
+                            <div class="progress-controls">
+                                <select id="progressCategory">
+                                    <option value="">Všechny kategorie</option>
+                                    <option value="chovani">Chování</option>
+                                    <option value="soustredeni">Soustředění</option>
+                                    <option value="matematika">Matematika</option>
+                                    <option value="cteni">Čtení</option>
+                                    <option value="psani">Psaní</option>
+                                    <option value="komunikace">Komunikace</option>
+                                    <option value="socialni_dovednosti">Sociální dovednosti</option>
+                                    <option value="emoce">Emoce</option>
+                                    <option value="motorika">Motorika</option>
+                                </select>
+                            </div>
+                            <canvas id="progressChart" width="600" height="300"></canvas>
+                            <div id="progressTimeline"></div>
+                        </div>
+
+                        <!-- Dokumenty -->
+                        <div id="detail-docs" class="detail-content">
+                            <div class="docs-actions">
+                                <button class="btn btn-primary btn-small" onclick="uploadDocument()">📤 Nahrát dokument</button>
+                                <input type="file" id="docUploadInput" accept=".doc,.docx,.pdf" style="display:none;">
+                            </div>
+                            <div id="clientDocsList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- New Client Modal -->
+            <div id="newClientModal" class="modal" style="display:none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Nový klient</h3>
+                        <button class="modal-close" onclick="closeModal('newClientModal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-field">
+                            <label>Jméno *</label>
+                            <input type="text" id="newClientFirstName" required>
+                        </div>
+                        <div class="form-field">
+                            <label>Příjmení *</label>
+                            <input type="text" id="newClientLastName" required>
+                        </div>
+                        <div class="form-field">
+                            <label>Datum narození</label>
+                            <input type="date" id="newClientBirthDate">
+                        </div>
+                        <div class="form-field">
+                            <label>Pohlaví</label>
+                            <select id="newClientGender">
+                                <option value="">--</option>
+                                <option value="M">Chlapec</option>
+                                <option value="F">Dívka</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label>Škola</label>
+                            <input type="text" id="newClientSchool" placeholder="ZŠ Příkladní">
+                        </div>
+                        <div class="form-field">
+                            <label>Třída</label>
+                            <input type="text" id="newClientClass" placeholder="3.A">
+                        </div>
+                        <div class="form-field">
+                            <label>Jméno rodiče</label>
+                            <input type="text" id="newClientParent">
+                        </div>
+                        <div class="form-field">
+                            <label>Telefon rodiče</label>
+                            <input type="tel" id="newClientParentPhone">
+                        </div>
+                        <div class="form-field">
+                            <label>E-mail rodiče</label>
+                            <input type="email" id="newClientParentEmail">
+                        </div>
+                        <div class="form-field">
+                            <label>Poznámky</label>
+                            <textarea id="newClientNotes" rows="3"></textarea>
+                        </div>
+                        <button id="saveNewClientBtn" class="btn btn-primary btn-block">Uložit klienta</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: Nové sezení -->
+        <div id="tab-newSession" class="tab-content">
+            <div class="page-header">
+                <h2>🎤 Nové sezení</h2>
+            </div>
+            <div class="session-setup">
+                <div class="form-field">
+                    <label>Klient *</label>
+                    <select id="sessionClientSelect">
+                        <option value="">-- Vyberte klienta --</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Typ sezení</label>
+                    <select id="sessionTypeSelect">
+                        <option value="prvni">První schůzka</option>
+                        <option value="nasledna" selected>Následná schůzka</option>
+                        <option value="kontrola">Kontrolní schůzka</option>
+                        <option value="diagnostika">Diagnostika</option>
+                        <option value="intervence">Intervence</option>
+                    </select>
+                </div>
+                <a href="index.html" class="btn btn-primary" target="_blank">
+                    🎤 Otevřít přepis rozhovoru →
+                </a>
+                <p class="hint-text">
+                    Po dokončení přepisu se vraťte sem, vložte přepis a uložte sezení do databáze.
+                </p>
+            </div>
+
+            <div class="section-card">
+                <h3>Přepis rozhovoru</h3>
+                <textarea id="sessionTranscript" rows="8" placeholder="Vložte přepis rozhovoru z přepisovací stránky (Ctrl+A → Ctrl+C → Ctrl+V)..."></textarea>
+            </div>
+
+            <div class="section-card">
+                <h3>Strukturovaný zápis</h3>
+                <button id="generateFromTranscript" class="btn btn-primary">🤖 Generovat AI zápis</button>
+
+                <div class="report-grid">
+                    <div class="form-field">
+                        <label>1. Anamnéza</label>
+                        <textarea id="sessAnamneza" rows="4"></textarea>
+                    </div>
+                    <div class="form-field">
+                        <label>2. Pozorování</label>
+                        <textarea id="sessPozorovani" rows="4"></textarea>
+                    </div>
+                    <div class="form-field">
+                        <label>3. Metody</label>
+                        <textarea id="sessMetody" rows="3"></textarea>
+                    </div>
+                    <div class="form-field">
+                        <label>4. Závěry</label>
+                        <textarea id="sessZavery" rows="4"></textarea>
+                    </div>
+                    <div class="form-field">
+                        <label>5. Doporučení</label>
+                        <textarea id="sessDoporuceni" rows="4"></textarea>
+                    </div>
+                    <div class="form-field">
+                        <label>6. Poznámky</label>
+                        <textarea id="sessPoznamky" rows="3"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <h3>📈 Hodnocení pokroku</h3>
+                <p class="hint-text">Ohodnoťte stav klienta v kategoriích (1 = velmi špatné, 5 = výborné):</p>
+                <div id="progressRatings" class="ratings-grid"></div>
+            </div>
+
+            <div class="session-actions">
+                <button id="saveSessionBtn" class="btn btn-success btn-large">💾 Uložit sezení do databáze</button>
+                <button id="saveAndExportBtn" class="btn btn-primary btn-large">📄 Uložit + Exportovat Word</button>
+            </div>
+        </div>
+
+        <!-- TAB: Dokumenty -->
+        <div id="tab-documents" class="tab-content">
+            <div class="page-header">
+                <h2>📁 Dokumenty</h2>
+                <div class="header-actions">
+                    <select id="docFilterClient">
+                        <option value="">Všichni klienti</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="uploadDocument()">📤 Nahrát dokument</button>
+                </div>
+            </div>
+            <div id="allDocsList" class="list-container">
+                <p class="empty-state">Načítám dokumenty...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>
