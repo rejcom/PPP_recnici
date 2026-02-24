@@ -1,0 +1,13 @@
+{
+  "name": "ppp-app",
+  "version": "1.0.0",
+  "description": "PPP - Zápis a diktování pro psychologické poradny",
+  "main": "api/speech-token.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'No build needed'"
+  },
+  "keywords": ["psychology", "transcription", "azure", "speech-to-text"],
+  "author": "",
+  "license": "MIT"
+}

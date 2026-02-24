@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPP - Zápis a diktování</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📝 Psychologická poradna - Zápis rozhovoru</h1>
+            <div class="user-info">
+                <span id="userEmail">Demo režim</span>
+            </div>
+        </header>
+
+        <main>
+            <!-- Ovládací panel -->
+            <section class="controls">
+                <div class="control-group">
+                    <h2>Nahrávání a přepis</h2>
+                    <div class="buttons">
+                        <button id="startRealtime" class="btn btn-primary">
+                            🎤 Spustit real-time přepis
+                        </button>
+                        <button id="stopRealtime" class="btn btn-danger" disabled>
+                            ⏹️ Zastavit
+                        </button>
+                        <button id="uploadAudio" class="btn btn-secondary">
+                            📁 Nahrát audio soubor
+                        </button>
+                    </div>
+                    <input type="file" id="audioFile" accept="audio/*" style="display:none;">
+
+                    <div class="recording-info">
+                        <span id="recordingTime">00:00</span>
+                        <span id="status" class="status-indicator">Připraveno</span>
+                    </div>
+                </div>
+
+                <!-- Informace o klientovi -->
+                <div class="control-group">
+                    <h3>Informace o klientovi</h3>
+                    <div class="client-info">
+                        <input type="text" id="clientName" placeholder="Jméno klienta (nepovinné)">
+                        <input type="date" id="sessionDate" value="">
+                        <select id="sessionType">
+                            <option value="prvni">První schůzka</option>
+                            <option value="nasledna">Následná schůzka</option>
+                            <option value="kontrola">Kontrolní schůzka</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Přepis -->
+            <section class="transcript-section">
+                <div class="section-header">
+                    <h2>Přepis rozhovoru</h2>
+                    <div class="buttons">
+                        <button id="loadDemo" class="btn btn-small btn-secondary">📋 Načíst demo data</button>
+                        <button id="clearTranscript" class="btn btn-small">Vymazat</button>
+                    </div>
+                </div>
+
+                <!-- Panel řečníků (diarizace) -->
+                <div id="speakerPanel" class="speaker-panel" style="display: none;">
+                    <h3>👥 Rozpoznaní řečníci</h3>
+                    <p class="speaker-hint">Přiřaďte role jednotlivým řečníkům pro lepší orientaci v přepisu:</p>
+                    <div id="speakerList" class="speaker-list"></div>
+                </div>
+
+                <div id="transcript" class="transcript-box" contenteditable="true">
+                    Zde se zobrazí přepis rozhovoru...
+                </div>
+            </section>
+
+            <!-- Strukturovaný zápis -->
+            <section class="report-section">
+                <div class="section-header">
+                    <h2>Strukturovaný zápis</h2>
+                    <button id="generateReport" class="btn btn-primary">🤖 Generovat zápis z přepisu</button>
+                </div>
+
+                <div class="report-form">
+                    <div class="form-group">
+                        <label>1. Důvod návštěvy / Anamnéza</label>
+                        <textarea id="anamneza" rows="4" placeholder="Proč klient přišel, co ho trápí..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>2. Pozorování během schůzky</label>
+                        <textarea id="pozorovani" rows="4" placeholder="Chování klienta, emotivní stav, komunikace..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>3. Provedená vyšetření / Metody</label>
+                        <textarea id="metody" rows="3" placeholder="Jaké testy, dotazníky nebo metody byly použity..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>4. Zjištění a závěry</label>
+                        <textarea id="zavery" rows="4" placeholder="Co bylo zjištěno, diagnostické závěry..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>5. Doporučení a další postup</label>
+                        <textarea id="doporuceni" rows="4" placeholder="Doporučená opatření, další schůzky, doporučení pro rodiče/školu..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>6. Poznámky psychologa</label>
+                        <textarea id="poznamky" rows="3" placeholder="Interní poznámky, pro další sezení..."></textarea>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Export -->
+            <section class="export-section">
+                <h2>Export</h2>
+                <div class="buttons">
+                    <button id="exportWord" class="btn btn-success">📄 Exportovat do Word</button>
+                    <button id="exportPDF" class="btn btn-success">📑 Exportovat do PDF</button>
+                    <button id="saveLocal" class="btn btn-secondary">💾 Uložit lokálně</button>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <div class="info-box">
+                <h3>ℹ️ Demo verze s AI</h3>
+                <p><strong>🎤 Přepis:</strong> Azure Speech-to-Text (5 hodin/měsíc zdarma, pak ~1 USD/hod)</p>
+                <p><strong>🤖 AI Zápis:</strong> Mistral AI Large (~0.002 USD na zápis, €2/$2 free credit)</p>
+                <p><strong>💰 Odhad nákladů:</strong> 30 sezení/měsíc = cca 500-600 Kč celkem</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Azure Speech SDK - Lokální kopie -->
+    <script src="speech-sdk.js"></script>
+
+    <!-- Fallback CDN pokud lokální kopie nefunguje -->
+    <script>
+        if (typeof SpeechSDK === 'undefined') {
+            console.warn('Lokální SDK nenalezeno, načítám z CDN...');
+            var script = document.createElement('script');
+            script.src = 'https://aka.ms/csspeech/jsbrowserpackage';
+            script.async = false;
+            document.head.appendChild(script);
+        }
+    </script>
+
+    <!-- Naše aplikace -->
+    <script src="app.js"></script>
+</body>
+</html>
