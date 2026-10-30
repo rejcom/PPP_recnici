@@ -29,7 +29,7 @@ export default async function handler(req, res) {
                 'Authorization': `Bearer ${process.env.MISTRAL_API_KEY}`
             },
             body: JSON.stringify({
-                model: 'mistral-large-latest',
+                model: 'mistral-small-latest',
                 messages: [
                     {
                         role: 'system',
