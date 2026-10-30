@@ -1,6 +1,5 @@
 // Vercel serverless funkce pro Mistral AI
 export default async function handler(req, res) {
-    // CORS headers
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST');
@@ -29,20 +28,19 @@ export default async function handler(req, res) {
                 'Authorization': `Bearer ${process.env.MISTRAL_API_KEY}`
             },
             body: JSON.stringify({
-                model: 'mistral-small-latest',
+                model: 'open-mistral-7b',
                 messages: [
                     {
                         role: 'system',
-                        content: 'Jsi expert na psychologické zápisy. Vytvoř strukturovaný zápis z přepisu rozhovoru v psychologické poradně. Vrať POUZE platný JSON objekt, žádný další text.'
+                        content: 'Jsi expert na psychologické zápisy. Vytvoř strukturovaný zápis z přepisu rozhovoru v psychologické poradně. Vrať POUZE platný JSON objekt, žádný další text, žádné markdown bloky.'
                     },
                     {
                         role: 'user',
-                        content: `Přepis rozhovoru:\n\n${transcript}\n\nVytvoř strukturovaný psychologický zápis a vrať ho POUZE jako JSON objekt (bez markdown bloků, bez vysvětlování) v tomto formátu:\n{\n  "anamneza": "text",\n  "pozorovani": "text",\n  "metody": "text",\n  "zavery": "text",\n  "doporuceni": "text"\n}\n\nStruktura:\n1. Důvod návštěvy / Anamnéza\n2. Pozorování během schůzky\n3. Provedená vyšetření / Metody\n4. Zjištění a závěry\n5. Doporučení a další postup`
+                        content: `Přepis rozhovoru:\n\n${transcript}\n\nVytvoř strukturovaný psychologický zápis a vrať ho POUZE jako JSON objekt (bez markdown bloků, bez vysvětlování) v tomto formátu:\n{\n  "anamneza": "text",\n  "pozorovani": "text",\n  "metody": "text",\n  "zavery": "text",\n  "doporuceni": "text"\n}`
                     }
                 ],
                 temperature: 0.7,
-                max_tokens: 4000,
-                response_format: { type: 'json_object' }
+                max_tokens: 4000
             })
         });
 
@@ -56,7 +54,19 @@ export default async function handler(req, res) {
         }
 
         const data = await response.json();
-        res.status(200).json(data);
+        const rawText = data.choices[0].message.content;
+
+        // Extrahovat JSON z odpovědi
+        let reportJson;
+        try {
+            const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+            reportJson = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(rawText);
+        } catch (e) {
+            console.error('JSON parse error:', e, 'Raw:', rawText);
+            return res.status(500).json({ error: 'AI nevrátila platný JSON formát' });
+        }
+
+        res.status(200).json(reportJson);
     } catch (error) {
         console.error('Error calling Mistral AI:', error);
         res.status(500).json({ error: error.message });

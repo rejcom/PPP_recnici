@@ -757,22 +757,10 @@ Vytvořte strukturovaný psychologický zápis podle výše uvedené struktury. 
             throw new Error(`Mistral API error: ${response.status} - ${error}`);
         }
 
-        const data = await response.json();
-        const aiResponse = data.choices[0].message.content;
+        const reportJson = await response.json();
 
-        // Extrahovat JSON z odpovědi (může být v markdown bloku)
-        let reportJson;
-        try {
-            // Pokusit se najít JSON v odpovědi
-            const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                reportJson = JSON.parse(jsonMatch[0]);
-            } else {
-                reportJson = JSON.parse(aiResponse);
-            }
-        } catch (e) {
-            console.error('Chyba parsování JSON:', e);
-            throw new Error('AI nevrátila platný JSON formát');
+        if (reportJson.error) {
+            throw new Error(reportJson.error + (reportJson.details ? '\n' + reportJson.details : ''));
         }
 
         // Vyplnit formulář
